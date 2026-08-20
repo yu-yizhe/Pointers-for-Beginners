@@ -1,0 +1,39 @@
+name: Update traffic statistics
+
+on:
+  schedule:
+    - cron: "23 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-traffic-statistics
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Fetch and merge traffic data
+        env:
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python traffic-data/update_traffic.py
+
+      - name: Commit updated data
+        run: |
+          if git diff --quiet -- traffic-data/traffic.json; then
+            echo "Traffic data did not change."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add traffic-data/traffic.json
+          git commit -m "chore: update traffic statistics"
+          git push
