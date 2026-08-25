@@ -27,6 +27,8 @@ GitHub Actions 每天 UTC 01:23（北京时间 09:23）自动运行，也可以�
 
 ## 权限与令牌
 
-读取 Traffic API 使用仓库 Secret `TRAFFIC_TOKEN`。建议使用仅授权本仓库、仅具有 **Administration: Read-only** 权限的 fine-grained personal access token。工作流自带的 `GITHUB_TOKEN` 仅使用 `contents: write`，负责在数据变化时提交并推送 `traffic.json`。
+读取 Traffic API 使用仓库 Secret `TRAFFIC_TOKEN`。建议使用仅授权本仓库、仅具有 **Administration: Read-only** 权限的 fine-grained personal access token。工作流自带的 `GITHUB_TOKEN` 仅使用 `contents: write`，负责在数据变化时通过 GitHub Contents API 更新 `traffic.json`。
 
-自动提交使用信息 `chore: update traffic statistics`。由仓库 `GITHUB_TOKEN` 推送的提交不会再次触发普通 `push` 工作流，因此不会形成无限循环；本工作流本身也只监听定时和手动触发事件。
+工作流不会检出或 Clone 仓库，以免统计任务自身增加 Clone 数；它只下载更新脚本并调用 API。自动提交使用信息 `chore: update traffic statistics`。由仓库 `GITHUB_TOKEN` 创建的提交不会再次触发普通 `push` 工作流，因此不会形成无限循环；本工作流本身也只监听定时和手动触发事件。
+
+GitHub Traffic API 只提供匿名汇总数据，无法区分仓库所有者与其他访客。因此，此方案可以避免统计工作流自身产生 Clone，但无法从结果中扣除仓库所有者手动浏览页面或手动 Clone 仓库所产生的数据。

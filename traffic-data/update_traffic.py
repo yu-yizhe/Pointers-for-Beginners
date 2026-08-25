@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from base64 import b64decode, b64encode
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -37,6 +38,29 @@ def fetch(endpoint: str, repository: str, token: str) -> dict:
         raise RuntimeError(f"GitHub API {endpoint} request failed: {error.reason}") from error
 
 
+def api_request(url: str, token: str, method: str = "GET", payload: dict | None = None) -> dict:
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = Request(
+        url,
+        data=body,
+        method=method,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": API_VERSION,
+            "User-Agent": "github-traffic-history-workflow",
+        },
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"GitHub Contents API request failed ({error.code}): {detail}") from error
+    except URLError as error:
+        raise RuntimeError(f"GitHub Contents API request failed: {error.reason}") from error
+
+
 def merge_daily(existing: list[dict], views: list[dict], clones: list[dict]) -> list[dict]:
     """Upsert metrics by UTC date; never add overlapping 14-day totals."""
     by_date = {row["date"]: dict(row) for row in existing}
@@ -66,7 +90,21 @@ def main() -> int:
         print("GITHUB_REPOSITORY is required", file=sys.stderr)
         return 2
 
-    data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+    update_via_api = os.environ.get("UPDATE_VIA_CONTENTS_API") == "1"
+    contents_token = os.environ.get("CONTENTS_TOKEN")
+    branch = os.environ.get("GITHUB_REF_NAME", "main")
+    content_url = f"https://api.github.com/repos/{repository}/contents/traffic-data/traffic.json"
+
+    if update_via_api:
+        if not contents_token:
+            print("CONTENTS_TOKEN is required for API updates", file=sys.stderr)
+            return 2
+        current = api_request(f"{content_url}?ref={branch}", contents_token)
+        data = json.loads(b64decode(current["content"]).decode("utf-8"))
+    else:
+        current = None
+        data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+
     views = fetch("views", repository, token)
     clones = fetch("clones", repository, token)
     merged = merge_daily(data.get("daily", []), views.get("views", []), clones.get("clones", []))
@@ -81,7 +119,25 @@ def main() -> int:
         ),
         "daily": merged,
     }
-    DATA_FILE.write_text(json.dumps(new_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    serialized = json.dumps(new_data, ensure_ascii=False, indent=2) + "\n"
+    if update_via_api:
+        if not changed:
+            print("Traffic data did not change.")
+            return 0
+        api_request(
+            content_url,
+            contents_token,
+            method="PUT",
+            payload={
+                "message": "chore: update traffic statistics",
+                "content": b64encode(serialized.encode("utf-8")).decode("ascii"),
+                "sha": current["sha"],
+                "branch": branch,
+            },
+        )
+        print("Traffic data updated through the GitHub Contents API.")
+    else:
+        DATA_FILE.write_text(serialized, encoding="utf-8")
     return 0
 
 

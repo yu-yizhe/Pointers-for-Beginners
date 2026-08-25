@@ -16,24 +16,15 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Fetch and merge traffic data
+      - name: Fetch and update traffic data without cloning the repository
         env:
           GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+          CONTENTS_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python traffic-data/update_traffic.py
-
-      - name: Commit updated data
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          UPDATE_VIA_CONTENTS_API: "1"
         run: |
-          if git diff --quiet -- traffic-data/traffic.json; then
-            echo "Traffic data did not change."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add traffic-data/traffic.json
-          git commit -m "chore: update traffic statistics"
-          git push
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/traffic-data/update_traffic.py" \
+            --output /tmp/update_traffic.py
+          python /tmp/update_traffic.py
