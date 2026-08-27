@@ -1,6 +1,6 @@
 {
   "repository": "yu-yizhe/Pointers-for-Beginners",
-  "updated_at": "2026-08-26T02:40:33Z",
+  "updated_at": "2026-08-27T11:14:08Z",
   "daily": [
     {
       "date": "2026-08-04",
@@ -148,6 +148,20 @@
       "unique_visitors": 1,
       "clones": 4,
       "unique_cloners": 4
+    },
+    {
+      "date": "2026-08-25",
+      "views": 4,
+      "unique_visitors": 1,
+      "clones": 4,
+      "unique_cloners": 4
+    },
+    {
+      "date": "2026-08-26",
+      "views": 0,
+      "unique_visitors": 0,
+      "clones": 1,
+      "unique_cloners": 1
     }
   ]
 }
